@@ -23,6 +23,15 @@ app.use(
   }),
 );
 
+app.get("/", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "health-agent-server",
+    apiBase: "/api",
+    healthEndpoint: "/api/health",
+  });
+});
+
 app.use("/api", router);
 app.use(notFoundHandler);
 app.use(errorHandler);

@@ -1,18 +1,21 @@
-version: '3.8'
- 
 services:
   postgres:
     image: postgres:16-alpine
     container_name: health-agent-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: healthuser
-      POSTGRES_PASSWORD: healthpass
-      POSTGRES_DB: healthagent
+      POSTGRES_USER: ${POSTGRES_USER:-healthuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-healthpass}
+      POSTGRES_DB: ${POSTGRES_DB:-healthagent}
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
- 
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-healthuser} -d ${POSTGRES_DB:-healthagent}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres_data:

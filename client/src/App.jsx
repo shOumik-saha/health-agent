@@ -1,121 +1,267 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useCallback, useEffect, useMemo, useState } from "react";
+import "./App.css";
+import {
+  createLog,
+  generateWeekly,
+  getInsightHistory,
+  getMe,
+  getToken,
+  getTrends,
+  login,
+  register,
+  setToken,
+} from "./api/client";
+import Dashboard from "./components/Dashboard";
+import InsightCard from "./components/InsightCard";
+import LogForm from "./components/LogForm";
+import ChatPanel from "./components/ChatPanel";
+
+const defaultAuth = {
+  email: "",
+  password: "",
+  name: "",
+};
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [authMode, setAuthMode] = useState("login");
+  const [authForm, setAuthForm] = useState(defaultAuth);
+  const [user, setUser] = useState(null);
+  const [days, setDays] = useState(30);
+  const [trends, setTrends] = useState(null);
+  const [weeklyReport, setWeeklyReport] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState({
+    auth: false,
+    log: false,
+    trends: false,
+    weekly: false,
+  });
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const hasToken = useMemo(() => Boolean(getToken()), []);
+
+  const refreshInsights = useCallback(async (windowDays = days) => {
+    setLoading((prev) => ({ ...prev, trends: true }));
+    try {
+      const trendData = await getTrends(windowDays);
+      setTrends(trendData);
+      const historyData = await getInsightHistory();
+      setHistory(historyData.reports || []);
+      setError("");
+    } catch (err) {
+      setError(err?.response?.data?.error || "Failed to load trends.");
+    } finally {
+      setLoading((prev) => ({ ...prev, trends: false }));
+    }
+  }, [days]);
+
+  useEffect(() => {
+    if (!hasToken) return;
+    (async () => {
+      try {
+        const me = await getMe();
+        setUser(me.user);
+        await refreshInsights(30);
+      } catch {
+        setToken("");
+      }
+    })();
+  }, [hasToken, refreshInsights]);
+
+  async function handleAuth(event) {
+    event.preventDefault();
+    setLoading((prev) => ({ ...prev, auth: true }));
+    setError("");
+    try {
+      const payload =
+        authMode === "register"
+          ? { email: authForm.email, password: authForm.password, name: authForm.name || undefined }
+          : { email: authForm.email, password: authForm.password };
+      const data = authMode === "register" ? await register(payload) : await login(payload);
+      setUser(data.user);
+      await refreshInsights(30);
+      setNotice(`Welcome ${data.user.name || data.user.email}`);
+    } catch (err) {
+      setError(err?.response?.data?.error || "Authentication failed.");
+    } finally {
+      setLoading((prev) => ({ ...prev, auth: false }));
+    }
+  }
+
+  async function handleCreateLog(payload, onDone) {
+    setLoading((prev) => ({ ...prev, log: true }));
+    setError("");
+    try {
+      await createLog(payload);
+      onDone?.();
+      setNotice("Daily log saved.");
+      await refreshInsights(days);
+    } catch (err) {
+      const serverError = err?.response?.data?.error;
+      const details = err?.response?.data?.details?.[0]?.message;
+      setError(serverError || details || err?.message || "Failed to save daily log.");
+    } finally {
+      setLoading((prev) => ({ ...prev, log: false }));
+    }
+  }
+
+  async function handleGenerateWeekly() {
+    setLoading((prev) => ({ ...prev, weekly: true }));
+    setError("");
+    try {
+      const data = await generateWeekly(days);
+      setWeeklyReport(data.report);
+      setHistory((prev) => (data.snapshotId ? [{ id: data.snapshotId, narrative: data.report.narrative }, ...prev] : prev));
+      setNotice("Weekly report generated.");
+    } catch (err) {
+      setError(err?.response?.data?.error || "Could not generate weekly report.");
+    } finally {
+      setLoading((prev) => ({ ...prev, weekly: false }));
+    }
+  }
+
+  async function handleAsk(question) {
+    try {
+      const data = await generateWeekly(days);
+      setWeeklyReport(data.report);
+      return `Question: ${question}\n\n${data.report.narrative}`;
+    } catch (err) {
+      return err?.response?.data?.error || "Could not answer right now.";
+    }
+  }
+
+  function logout() {
+    setToken("");
+    window.location.reload();
+  }
+
+  if (!user) {
+    return (
+      <main className="app-shell auth-shell">
+        <section className="auth-card">
+          <h1>Personal Health & Habit Intelligence</h1>
+          <p className="subtitle">
+            Log daily signals. Detect delayed patterns. Get weekly narrative insights from your own data.
+          </p>
+
+          <div className="tabs">
+            <button
+              className={authMode === "login" ? "active" : ""}
+              onClick={() => setAuthMode("login")}
+              type="button"
+            >
+              Login
+            </button>
+            <button
+              className={authMode === "register" ? "active" : ""}
+              onClick={() => setAuthMode("register")}
+              type="button"
+            >
+              Register
+            </button>
+          </div>
+
+          <form className="auth-form" onSubmit={handleAuth}>
+            {authMode === "register" ? (
+              <label className="field">
+                <span>Name</span>
+                <input
+                  value={authForm.name}
+                  onChange={(event) => setAuthForm((prev) => ({ ...prev, name: event.target.value }))}
+                  placeholder="Your name"
+                />
+              </label>
+            ) : null}
+            <label className="field">
+              <span>Email</span>
+              <input
+                value={authForm.email}
+                onChange={(event) => setAuthForm((prev) => ({ ...prev, email: event.target.value }))}
+                placeholder="you@example.com"
+                type="email"
+                required
+              />
+            </label>
+            <label className="field">
+              <span>Password</span>
+              <input
+                value={authForm.password}
+                onChange={(event) => setAuthForm((prev) => ({ ...prev, password: event.target.value }))}
+                placeholder="minimum 8 characters"
+                type="password"
+                minLength={8}
+                required
+              />
+            </label>
+            <button className="btn btn-primary" type="submit" disabled={loading.auth}>
+              {loading.auth ? "Please wait..." : authMode === "register" ? "Create Account" : "Sign In"}
+            </button>
+          </form>
+
+          {error ? <p className="msg error">{error}</p> : null}
+        </section>
+      </main>
+    );
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
+    <main className="app-shell">
+      <header className="topbar">
         <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
+          <h1>Health Intelligence Agent</h1>
+          <p>Hi {user.name || user.email}. Your personal longitudinal analytics workspace.</p>
         </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+        <div className="top-actions">
+          <label>
+            Window
+            <select
+              value={days}
+              onChange={async (event) => {
+                const nextDays = Number(event.target.value);
+                setDays(nextDays);
+                await refreshInsights(nextDays);
+              }}
+            >
+              <option value={14}>14 days</option>
+              <option value={30}>30 days</option>
+              <option value={60}>60 days</option>
+              <option value={90}>90 days</option>
+            </select>
+          </label>
+          <button className="btn" onClick={handleGenerateWeekly} disabled={loading.weekly}>
+            {loading.weekly ? "Generating..." : "Generate Weekly Report"}
+          </button>
+          <button className="btn btn-quiet" onClick={logout}>
+            Logout
+          </button>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
+      </header>
+
+      {notice ? <p className="msg ok">{notice}</p> : null}
+      {error ? <p className="msg error">{error}</p> : null}
+
+      <section className="layout">
+        <div className="left-col">
+          <LogForm onSubmit={handleCreateLog} loading={loading.log} />
+          <ChatPanel onAsk={handleAsk} loading={loading.weekly} />
+        </div>
+        <div className="right-col">
+          <Dashboard trends={trends} loading={loading.trends} />
+          <InsightCard report={weeklyReport} loading={loading.weekly} />
+          <section className="card">
+            <div className="card-head">
+              <h2>Report History</h2>
+              <p>Latest saved weekly narratives.</p>
+            </div>
+            <ul className="history-list">
+              {history.length ? history.slice(0, 5).map((item) => <li key={item.id}>{item.narrative}</li>) : <li>No snapshots yet.</li>}
+            </ul>
+          </section>
         </div>
       </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    </main>
+  );
 }
 
-export default App
+export default App;

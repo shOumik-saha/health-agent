@@ -31,9 +31,9 @@ const loginSchema = z.object({
 const logSchema = z.object({
   date: z.coerce.date().optional(),
   sleepHours: z.number().min(0).max(24).optional(),
-  mood: z.number().int().min(1).max(10).optional(),
-  energy: z.number().int().min(1).max(10).optional(),
-  focus: z.number().int().min(1).max(10).optional(),
+  mood: z.number().int().min(0).max(10).optional(),
+  energy: z.number().int().min(0).max(10).optional(),
+  focus: z.number().int().min(0).max(10).optional(),
   waterLiters: z.number().min(0).max(10).optional(),
   exerciseMinutes: z.number().int().min(0).max(300).optional(),
   symptoms: z.array(z.string().min(1).max(80)).max(20).optional(),
