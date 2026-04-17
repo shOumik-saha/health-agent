@@ -7,10 +7,30 @@ import { errorHandler, notFoundHandler } from "./middleware.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
+const allowedOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+
+const corsOriginResolver = (origin, callback) => {
+  // Non-browser requests (e.g. curl, health checks) can pass without Origin.
+  if (!origin) {
+    callback(null, true);
+    return;
+  }
+
+  const normalizedOrigin = origin.replace(/\/$/, "");
+  if (!allowedOrigins.length || allowedOrigins.includes(normalizedOrigin)) {
+    callback(null, true);
+    return;
+  }
+
+  callback(new Error(`CORS blocked for origin: ${origin}`));
+};
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || true,
+    origin: corsOriginResolver,
   }),
 );
 app.use(express.json({ limit: "1mb" }));
