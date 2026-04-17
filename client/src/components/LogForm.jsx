@@ -116,7 +116,7 @@ export default function LogForm({ onSubmit, loading }) {
           <input name="waterLiters" type="number" min="0" max="10" step="0.1" />
         </label>
         <label className="field">
-          <span>exerciseMinutes</span>
+          <span>exercise Minutes</span>
           <input name="exerciseMinutes" type="number" min="0" max="300" step="1" />
         </label>
       </div>

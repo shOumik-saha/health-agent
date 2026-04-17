@@ -15,6 +15,7 @@ import Dashboard from "./components/Dashboard";
 import InsightCard from "./components/InsightCard";
 import LogForm from "./components/LogForm";
 import ChatPanel from "./components/ChatPanel";
+import healthLogo from "./assets/health-logo.svg";
 
 const defaultAuth = {
   email: "",
@@ -140,7 +141,10 @@ function App() {
     return (
       <main className="app-shell auth-shell">
         <section className="auth-card">
-          <h1>Personal Health & Habit Intelligence</h1>
+          <div className="brand-heading auth-brand">
+            <img src={healthLogo} alt="Health Intelligence logo" className="brand-logo" />
+            <h1>Personal Health & Habit Intelligence</h1>
+          </div>
           <p className="subtitle">
             Log daily signals. Detect delayed patterns. Get weekly narrative insights from your own data.
           </p>
@@ -209,12 +213,14 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <div>
-          <h1>Health Intelligence Agent</h1>
+          <div className="brand-heading app-brand">
+            <img src={healthLogo} alt="Health Intelligence logo" className="brand-logo" />
+            <h1>Health Intelligence Agent</h1>
+          </div>
           <p>Hi {user.name || user.email}. Your personal longitudinal analytics workspace.</p>
         </div>
         <div className="top-actions">
           <label>
-            Window
             <select
               value={days}
               onChange={async (event) => {
